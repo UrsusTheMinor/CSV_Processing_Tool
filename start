@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# Function to terminate a process by PID
+terminate_process() {
+  local pid=$1
+  if ps -p $pid > /dev/null; then
+    echo "Terminating process $pid..."
+    kill $pid
+  else
+    echo "Process $pid does not exist."
+  fi
+}
+
+
+# Check if any script.js processes are running
+pids=$(pgrep -f "node script.js")
+
+# If there are running processes
+if [ -n "$pids" ]; then
+  echo ""
+  echo ""
+  echo ""
+  echo "Script.js process is currently running."
+  echo "Do you want to switch it off? (y/n)"
+  read -r answer
+
+  if [[ "$answer" =~ ^[Yy]$ ]]; then
+    for pid in $pids; do
+      terminate_process $pid
+    done
+    echo "Script.js process switched off."
+  else
+    echo "Script.js process remains running."
+  fi
+else
+  # Start a new process to run the script
+    echo ""
+    echo ""
+    echo ""
+  echo "Script.js process is currently off."
+  echo "Do you want to switch it on? (y/n)"
+  read -r answer
+
+  if [[ "$answer" =~ ^[Yy]$ ]]; then
+    echo "Starting script.js process..."
+    nohup node script.js > nohup.out 2>&1 &
+
+    sleep 1 # Wait for the process to start
+
+    new_pids=$(pgrep -f "node script.js")
+
+    if [ -n "$new_pids" ]; then
+      echo "Script.js process switched on. Writing to nohup.out."
+    else
+      echo "Failed to start the script.js process. Check script.js file and node installation."
+    fi
+  else
+    echo "Script.js process remains off."
+  fi
+fi
