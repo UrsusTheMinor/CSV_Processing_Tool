@@ -1,5 +1,4 @@
-# CSV Processing Tool
-## by UrsusTheMinor
+# CSV Processing Tool by UrsusTheMinor
 
 
 
