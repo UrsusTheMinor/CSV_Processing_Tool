@@ -7,7 +7,7 @@
 This tool, written in Nodejs updates automatically any CSV Files given, may it be a link or a relative path.
 
 It was written to automatically fetch CSV Files from Suppliers (Channable, etc.) and put them together to create fixed IDs and
-update everything automatically to Sync Stock with Shopify (for the Syncing with Shopify I use the App stock-sync.com).
+update everything automatically to sync stock with Shopify (for the Syncing with Shopify I use the App stock-sync.com).
 
 ## How to start
 
