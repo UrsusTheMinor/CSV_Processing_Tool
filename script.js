@@ -47,11 +47,11 @@ function fetchCSVData(source) {
 // Function to read existing CSV data or create a new file if it doesn't exist
 function readOrCreateCSVFile() {
     return new Promise((resolve, reject) => {
-        fs.readFile('stock.csv', 'utf8', (err, data) => {
+        fs.readFile(getJson("config.json").get("output_file_name"), 'utf8', (err, data) => {
             if (err) {
                 if (err.code === 'ENOENT') {
                     // File doesn't exist, create a new one
-                    fs.writeFile('stock.csv', '', (err) => {
+                    fs.writeFile(getJson("config.json").get("output_file_name"), '', (err) => {
                         if (err) {
                             reject(err);
                         } else {
@@ -70,14 +70,23 @@ function readOrCreateCSVFile() {
 
 // Function to parse CSV data and update the stock values
 
-async function parseAndUpdateCSV(data) {
+async function parseAndUpdateCSV(data, name) {
     const rows = data.trim().split('\n');
     const transformedRows = [];
     const stockData = new Map();
 
-    const old_data = await fetchCSVData("stock.csv");
+    const config = getJson("config.json");
+    const valuedata = getJson("data.json");
+
+    const old_data = await fetchCSVData(getJson("config.json").get("output_file_name"));
+    const oldrowstemp = old_data.trim().split('\n');
+
+
+
+    titles = config.get("titles");
+
     // Add header row
-    transformedRows.push('id,old_id,title,stock');
+    transformedRows.push(titles.join(','));
 
 
 
@@ -90,17 +99,37 @@ async function parseAndUpdateCSV(data) {
             const columns = rows[i].split(',');
 
             id = i - 1;
-            const oldId = columns[0];
-            const title = columns[11];
-            const stock = columns[8];
 
-            columns[8] = stockData.get(oldId) || stock;
-            transformedRows.push(`${id},${oldId},${title}, ${stock}`);
+            let values = [];
+            for(let j = 1; j < valuedata.get(name).length; j++) {
 
-            stockData.set(oldId, id);
+                values.push(columns[valuedata.get(name)[j]]);
+            }
+
+            values[0] = name + "_" + values[0];
+
+
+            stockData.set(values[0], id);
+
+            values = values.join(",");
+
+
+            transformedRows.push(`${id},${values}`);
+
+
+
         }
 
     } else {
+
+
+
+        let t = 1;
+
+        while (oldrowstemp.length > t && !(oldrowstemp[t].split(',')[1].startsWith(name)))  {
+            transformedRows.push(oldrowstemp[t]);
+            t = t + 1;
+        }
 
         let ids = [];
         const old_rows = old_data.trim().split('\n');
@@ -113,69 +142,86 @@ async function parseAndUpdateCSV(data) {
             //ok also hier lassen wir die neuen rows durchlaufen, von 0 bis row = "" oder die row die wir brauchen, falls das eintritt dann is halt stock 0, falls ned haben wir die row
             const columns = old_rows[i].split(',');
             id = i - 1;
-            const oldId = columns[1];
-            ids.push(oldId);
-            const title = columns[2];
+            const primary = columns[1];
+            ids.push(primary);
 
-            let stock = 0;
+            if(columns[1].startsWith(name)) {
 
-            for(let j = 1; j < rows.length; j++) {
+                let always_update = 0;
 
-                const new_columns = rows[j].split(',');
-                if(new_columns[0] == columns[1]) {
-                    stock = new_columns[8];
-                    break;
+
+                //hier ändern weil er nicht lang genug sucht
+                for (let j = 1; j < (old_rows.length - 1); j++) {
+
+
+                    const new_columns = rows[j % rows.length].split(',');
+
+
+                    if (( /* primary old -> */ columns[1].endsWith(new_columns[valuedata.get(name)[1]])) /* <- primary new */ && columns[1].startsWith(name)) {
+                        always_update = new_columns[valuedata.get(name)[2]];
+                        break;
+                    }
                 }
+
+                let values = [];
+
+
+                if (valuedata.get(name).length > 3) {
+                    for (let j = 3; j <= (valuedata.get(name).length - 1); j++) {
+                        values.push(columns[j]);
+
+                    }
+                }
+
+                values = values.join(",");
+
+
+                transformedRows.push(`${id},${primary},${always_update},${values}`);
+                stockData.set(primary, id);
             }
-
-
-            transformedRows.push(`${id},${oldId},${title}, ${stock}`);
-            stockData.set(oldId, id);
         }
 
-        while(ids.length < (rows.length - 1)) {
+            let new_elements = 0;
+
             for(let i = 1; i < rows.length; i++) {
                 const columns = rows[i].split(',');
 
-                if(!ids.includes(columns[0])) {
+                if(!ids.includes(name + "_" + columns[valuedata.get(name)[1]])) {
 
                     id = id + 1;
-                    const oldId = columns[0];
-                    ids.push(oldId);
-                    const title = columns[11];
-                    const stock = columns[8];
+                    const primary = name + "_" + columns[valuedata.get(name)[1]];
+                    ids.push(primary);
+                    const always_update = columns[valuedata.get(name)[2]];
 
-                    transformedRows.push(`${id},${oldId},${title}, ${stock}`);
-                    stockData.set(oldId, id);
+                    let values = [];
+
+                    if(valuedata.get(name).length > 3) {
+                        for(let j = 3; j <= valuedata.get(name).length; j++) {
+                            values.push(columns[valuedata.get(name)[j]]);
+                        }
+                    }
+
+                    values = values.join(",");
+
+                    transformedRows.push(`${id},${primary},${always_update},${values}`);
+                    stockData.set(primary, id);
                 }
             }
-        }
+
+            t++;
+            if(oldrowstemp >= t) {
+                while ((oldrowstemp.length) >= t && !(oldrowstemp[t].split(',')[1].startsWith(name))) {
+                    transformedRows.push(oldrowstemp[t]);
+                    t = t + 1;
+                }
+            }
     }
 
 
-    //     // Find new rows and add them
-    //     let newRowsAdded = false;
-    //     for (let i = 1; i < rows.length; i++) {
-    //         const columns = rows[i].split(',');
-    //         const oldId = columns[0];
-    //
-    //         if (!stockData.has(oldId)) {
-    //             const id = transformedRows.length - 1;
-    //             const title = columns[11];
-    //             const stock = '0'; // Set stock to 0 for new rows
-    //
-    //             transformedRows.push(`${id},${oldId},${title},${stock}`);
-    //             stockData.set(oldId, id);
-    //
-    //             newRowsAdded = true;
-    //         }
-    //     }
-    //
-    // }
 
     const transformedCSV = transformedRows.join('\n');
 
-    fs.writeFile('stock.csv', transformedCSV, (err) => {
+    fs.writeFile(getJson("config.json").get("output_file_name"), transformedCSV, (err) => {
         if (err) {
             console.error('Error writing CSV file:', err);
         } else {
@@ -192,8 +238,34 @@ function onProgramExit() {
     process.exit(0);
 }
 
-// Function to add key-value pair to a JSON file
-function addToJsonFile(key, value) {
+// Function to add key-value pairs to a JSON file
+function addToJsonFile(key, values) {
+    let data = {};
+
+    // Check if the JSON file exists
+    if (fs.existsSync('data.json')) {
+        // If it exists, read the file and parse its contents
+        const fileData = fs.readFileSync('data.json');
+        data = JSON.parse(fileData);
+    }
+
+    // Check if the key already exists in the data object
+    if (data.hasOwnProperty(key)) {
+        // If it exists, append the new values to the existing array
+        data[key] = data[key].concat(values);
+    } else {
+        // If it doesn't exist, create a new array with the values
+        data[key] = values;
+    }
+
+    // Write the updated data object to the JSON file
+    fs.writeFileSync('data.json', JSON.stringify(data));
+
+    console.log(`Added values '${values.join(", ")}' to the key '${key}' in data.json.`);
+}
+
+// Function to add key-value pairs to a JSON file
+function editconfig(key, values) {
     let data = {};
 
     // Check if the JSON file exists
@@ -201,101 +273,164 @@ function addToJsonFile(key, value) {
         // If it exists, read the file and parse its contents
         const fileData = fs.readFileSync('config.json');
         data = JSON.parse(fileData);
+    } else {
+
     }
 
-    // Add the key-value pair to the data object
-    data[key] = value;
+    data[key] = values;
 
     // Write the updated data object to the JSON file
     fs.writeFileSync('config.json', JSON.stringify(data));
 
-    console.log(`Added key '${key}' with value '${value}' to config.json.`);
+
+    console.log(`Updated '${key}'...`);
+    return 0;
 }
 
+
+
 // Function to retrieve all key-value pairs from the JSON file
-function getAllKeyValuePairs() {
-    if (!fs.existsSync('config.json')) {
-        console.log("config.json doesn't exist or has no value, please add value using: script.js <supplier> <link_to_file> ");
+function getJson(path) {
+    if (!fs.existsSync(path)) {
+        console.log(`${path} doesn't exist or has no value`);
         return -1;
     }
 
-    const fileData = fs.readFileSync('config.json');
+    const fileData = fs.readFileSync(path);
     const data = JSON.parse(fileData);
 
     return new Map(Object.entries(data));
 }
 
+function deleteKeyFromJSON(filename, key) {
+    try {
+        const jsonString = fs.readFileSync(filename, 'utf8');
+        const json = JSON.parse(jsonString);
+
+        if (json.hasOwnProperty(key)) {
+            delete json[key];
+            const updatedJsonString = JSON.stringify(json, null, 2);
+            fs.writeFileSync(filename, updatedJsonString, 'utf8');
+            console.log(`Key "${key}" deleted from JSON file`);
+            process.exit(0);
+        } else {
+            console.log(`Key "${key}" not found in JSON`);
+            process.exit(-1);
+        }
+    } catch (error) {
+        console.log("Not found");
+    }
+}
+
+
 // Function to execute the script every hour
 function executeScript() {
-
     displayformat();
     // Call the function to display the current date and time
     displayDateTime();
-    const [command, key, value] = process.argv.slice(2);
 
-    if(typeof command === "undefined") {
-
-        console.log('Reading or creating the CSV file...');
-
-        dict = getAllKeyValuePairs();
-
-        if(dict === -1) {
-            return -1;
-        }
-
-        for (const [key, value] of dict.entries()) {
-
-            readOrCreateCSVFile()
-                .then((data) => {
-                    console.log('Fetching CSV data...');
-                    // Check if a console parameter is provided
-                    return fetchCSVData(value);
-                })
-                .then((data) => {
-                    console.log('Parsing and updating CSV data...');
-                    parseAndUpdateCSV(data);
-                })
-                .catch((err) => {
-                    console.error('Error:', err);
-                });
-
-        }
-    } else if (command === 'add') {
-        if (key && value) {
-            addToJsonFile(key, value);
-            process.exit(0);
-        } else {
-            console.log('Invalid command. Usage: add <supplier> <link_to_file>');
-            process.exit(-1);
-        }
-    } else if (command === 'retrieve') {
-        console.log(getAllKeyValuePairs());
-        process.exit(0);
-    } else {
-        readOrCreateCSVFile()
-            .then((data) => {
-                console.log('Fetching CSV data...');
-                // Check if a console parameter is provided
-                const consoleParam = process.argv[2];
-                if (consoleParam) {
-                    return fetchCSVData(consoleParam);
-                } else {
-                    console.log('Invalid command. Available commands: add, retrieve or file name');
-                    process.exit(-1);
-                }
-            })
-            .then((data) => {
-                console.log('Parsing and updating CSV data...');
-                parseAndUpdateCSV(data);
-            })
-            .catch((err) => {
-                console.error('Error:', err);
-            });
-
+    if (!fs.existsSync('config.json')) {
+        editconfig("titles", ["id", "primary", "updating", "else"]);
+        editconfig("output_file_name", "output.csv");
     }
 
 
+
+    const [command, ...args] = process.argv.slice(2);
+
+    if (typeof command === "undefined") {
+        if (!fs.existsSync('data.json')) {
+            console.log("Setup required: https://github.com/UrsusTheMinor/CSV_Processing_Tool");
+            process.exit(-1);
+        }
+
+        console.log("Reading or creating the CSV file...");
+
+        const dict = getJson("data.json");
+
+        if (dict === -1) {
+            return -1;
+        }
+
+
+        for (const [key, values] of dict.entries()) {
+            readOrCreateCSVFile()
+                .then((data) => {
+                    console.log("Fetching CSV data...");
+                    // Check if a console parameter is provided
+                    return fetchCSVData(values[0]);
+                })
+                .then((data) => {
+                    console.log("Parsing and updating CSV data...");
+                    parseAndUpdateCSV(data, key);
+                })
+                .catch((err) => {
+                    console.error("Error:", err);
+                });
+        }
+    } else if (command === "add") {
+        if (args.length >= 3) {
+            const key = args[0];
+            const values = args.slice(1);
+            addToJsonFile(key, values);
+            process.exit(0);
+        } else {
+            console.log("Invalid command. Usage: add <key> <value1> <value2> ...");
+            process.exit(-1);
+        }
+    } else if (command === "retrieve") {
+        console.log(getJson("data.json"));
+        process.exit(0);
+    } else if (command === "remove" || command === "delete") {
+
+        const key = args[0];
+
+        deleteKeyFromJSON("data.json", key);
+
+    } else if (command === "config") {
+        const cmd = new Map();
+
+        //-2 = muss weniger -1 = kann weniger oder gleich 0 = muss so viele args haben 1 = kann gleich viel oder mehr 2 = muss mehr
+        cmd.set("titles", 2);
+        cmd.set("output_file_name", 1);
+
+
+
+        if(!cmd.has(args[0])) {
+            console.log("Invalid config command!")
+            process.exit(-1);
+        }
+
+        if (args.length > 2) {
+            if(!(cmd.get(args[0]) >= 2)) {
+                console.log("To few arguments!")
+                process.exit(-1);
+            }
+            const key = args[0];
+            const values = args.slice(1);
+            editconfig(key, values);
+            process.exit(0);
+        } else if(args.length == 2) {
+            if(!(cmd.get(args[0]) == 1)) {
+                console.log("Invalid arguments!")
+                process.exit(-1);
+            }
+            const key = args[0];
+            const value = args[1];
+            editconfig(key, value)
+            process.exit(-1);
+        }else {
+            console.log("Invalid command. Usage: config <setting> <value1> <value2> ...");
+            process.exit(-1);
+        }
+    }else {
+
+        console.log(Error);
+        process.exit(-1);
+
+    }
 }
+
 
 // Initial script execution
 executeScript();

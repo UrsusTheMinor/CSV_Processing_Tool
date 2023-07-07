@@ -11,10 +11,10 @@ update everything automatically to sync stock with Shopify (for the Syncing with
 
 ## How to start
 
-Start by adding a Link with a name:
+Start by adding a Link (can be a web link or relative link), a name, a primary index, a updating index and as many other indices (indices of the original file):
 
 ```
-node script.js add <name> <link_to_file>
+node script.js add <name> <link_to_file> <primary> <updating> <arg1> ...
 ```
 
 To verify it created the config and added you input type:
@@ -32,22 +32,40 @@ You can now start the Programm with:
 
 Now just type `y`, and you're good to go!
 
+**Congratulations** you now have successfully started the programm for the first time, this may take a cupple minutes
 
-If you now want to stop the programm just type
+If you now want to stop the programm just write the following line again and type `y`:
 ```
 ./start
 ```
-again and type `y`.
 
 
-Let's say you want to delete a Link just type: (Not yet implemented)
+To delete a link:
 
 ```
 node script.js delete <name>
 ```
 
+**or**
+
+```
+node script.js remove <name>
+```
+
+## Settings
+
+If you want to edit the settings write the following:
+
+```
+node script.js config <settings> <arg1> <arg2> ...
+```
+
+List of all settings:
+
++ titles
++ output_file_name
+
 
 ## Problems that I am aware of that will be fixed asap
 
-1. It currently uses fixed indexes for the ID, Stock and Title of Products.
-2. There is no delete function for the config
+If you find any problems message me them via Discord: [ursustheminor](https://discordapp.com/users/ursustheminor)
